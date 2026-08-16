@@ -57,7 +57,24 @@ export default function Portfolio() {
     const animatedElements = document.querySelectorAll(".animate-on-scroll")
     animatedElements.forEach((el) => observer.observe(el))
 
-    return () => observer.disconnect()
+    // Safety net: if the observer never fires (unsupported, blocked, or an
+    // element stays just outside the trigger zone), reveal any element that is
+    // already within the viewport so content is never stuck invisible.
+    const revealInView = () => {
+      document.querySelectorAll(".animate-on-scroll:not(.animate-in)").forEach((el) => {
+        const rect = el.getBoundingClientRect()
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          el.classList.add("animate-in")
+        }
+      })
+    }
+    revealInView()
+    window.addEventListener("scroll", revealInView, { passive: true })
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("scroll", revealInView)
+    }
   }, [])
 
   useEffect(() => {
