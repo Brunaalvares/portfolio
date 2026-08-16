@@ -380,6 +380,7 @@ export default function PortfolioHome({ projects, blogs }: Props) {
                 <a href="#work">Work</a>
                 <a href="#blog">Blog</a>
                 <a href="#contact">Contact</a>
+                <a href="/admin">Admin</a>
               </nav>
               <div className="social-icons">
                 <a

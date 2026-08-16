@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server"
-import { createSessionToken, sessionCookieOptions, verifyPassword } from "@/lib/auth"
+import { createSessionToken, sessionCookieOptions, verifyCredentials } from "@/lib/auth"
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
+    const username = String(body.username || "")
     const password = String(body.password || "")
 
-    if (!verifyPassword(password)) {
-      return NextResponse.json({ error: "Senha incorreta" }, { status: 401 })
+    if (!verifyCredentials(username, password)) {
+      return NextResponse.json({ error: "Usuário ou senha incorretos" }, { status: 401 })
     }
 
     const token = createSessionToken()

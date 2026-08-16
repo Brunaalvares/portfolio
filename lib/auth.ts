@@ -3,41 +3,42 @@ import { cookies } from "next/headers"
 
 export const ADMIN_COOKIE = "ba_admin_session"
 
+function getUsername(): string {
+  return process.env.ADMIN_USERNAME || "bruna-admin"
+}
+
 function getPassword(): string {
-  return process.env.ADMIN_PASSWORD || "bruna-admin"
+  return process.env.ADMIN_PASSWORD || "portfoliodabruna"
 }
 
 function getSecret(): string {
   return process.env.ADMIN_SESSION_SECRET || "bruna-portfolio-secret"
 }
 
+function safeEqual(a: string, b: string): boolean {
+  try {
+    const bufA = Buffer.from(a)
+    const bufB = Buffer.from(b)
+    if (bufA.length !== bufB.length) return false
+    return timingSafeEqual(bufA, bufB)
+  } catch {
+    return false
+  }
+}
+
 export function createSessionToken(): string {
-  return createHmac("sha256", getSecret()).update(getPassword()).digest("hex")
+  return createHmac("sha256", getSecret())
+    .update(`${getUsername()}:${getPassword()}`)
+    .digest("hex")
 }
 
 export function verifySessionToken(token: string | undefined): boolean {
   if (!token) return false
-  const expected = createSessionToken()
-  try {
-    const a = Buffer.from(token)
-    const b = Buffer.from(expected)
-    if (a.length !== b.length) return false
-    return timingSafeEqual(a, b)
-  } catch {
-    return false
-  }
+  return safeEqual(token, createSessionToken())
 }
 
-export function verifyPassword(password: string): boolean {
-  const expected = getPassword()
-  try {
-    const a = Buffer.from(password)
-    const b = Buffer.from(expected)
-    if (a.length !== b.length) return false
-    return timingSafeEqual(a, b)
-  } catch {
-    return false
-  }
+export function verifyCredentials(username: string, password: string): boolean {
+  return safeEqual(username, getUsername()) && safeEqual(password, getPassword())
 }
 
 export async function isAuthenticated(): Promise<boolean> {
