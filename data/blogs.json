@@ -1,0 +1,41 @@
+[
+  {
+    "id": "blog-1",
+    "title": "Building Scalable Component Libraries",
+    "slug": "building-scalable-component-libraries",
+    "tag": "Design Systems",
+    "excerpt": "Learn how to create maintainable design systems that grow with your product and team. A comprehensive guide to tokens, components, and documentation.",
+    "content": "Learn how to create maintainable design systems that grow with your product and team.\n\nA comprehensive guide to tokens, components, and documentation — covering governance, contribution models, and how to keep adoption high as teams scale.",
+    "image": "",
+    "published": true,
+    "publishedAt": "2026-01-15T00:00:00.000Z",
+    "createdAt": "2026-01-15T00:00:00.000Z",
+    "updatedAt": "2026-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "blog-2",
+    "title": "Modern React Patterns for 2026",
+    "slug": "modern-react-patterns-for-2026",
+    "tag": "Development",
+    "excerpt": "Exploring the latest patterns and best practices in React development, from server components to advanced state management techniques.",
+    "content": "Exploring the latest patterns and best practices in React development, from server components to advanced state management techniques.\n\nThis article walks through practical patterns that keep apps fast, maintainable, and pleasant to work on.",
+    "image": "",
+    "published": true,
+    "publishedAt": "2026-01-08T00:00:00.000Z",
+    "createdAt": "2026-01-08T00:00:00.000Z",
+    "updatedAt": "2026-01-08T00:00:00.000Z"
+  },
+  {
+    "id": "blog-3",
+    "title": "The Art of Micro-Interactions",
+    "slug": "the-art-of-micro-interactions",
+    "tag": "Product Design",
+    "excerpt": "Discover how subtle animations and feedback mechanisms can dramatically improve user experience and product delight.",
+    "content": "Discover how subtle animations and feedback mechanisms can dramatically improve user experience and product delight.\n\nSmall moments of feedback — a button press, a success state, a loading transition — can make digital products feel alive and trustworthy.",
+    "image": "",
+    "published": true,
+    "publishedAt": "2025-12-28T00:00:00.000Z",
+    "createdAt": "2025-12-28T00:00:00.000Z",
+    "updatedAt": "2025-12-28T00:00:00.000Z"
+  }
+]
