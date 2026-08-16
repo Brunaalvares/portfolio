@@ -57,7 +57,24 @@ export default function Portfolio() {
     const animatedElements = document.querySelectorAll(".animate-on-scroll")
     animatedElements.forEach((el) => observer.observe(el))
 
-    return () => observer.disconnect()
+    // Safety net: if the observer never fires (unsupported, blocked, or an
+    // element stays just outside the trigger zone), reveal any element that is
+    // already within the viewport so content is never stuck invisible.
+    const revealInView = () => {
+      document.querySelectorAll(".animate-on-scroll:not(.animate-in)").forEach((el) => {
+        const rect = el.getBoundingClientRect()
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          el.classList.add("animate-in")
+        }
+      })
+    }
+    revealInView()
+    window.addEventListener("scroll", revealInView, { passive: true })
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("scroll", revealInView)
+    }
   }, [])
 
   useEffect(() => {
@@ -182,7 +199,11 @@ export default function Portfolio() {
               <div className="hero-content-wrapper">
                 <div className="hero-image-container animate-on-scroll">
                   <div className="hero-image-bg"></div>
-                  <img src="/images/me-02.jpg" alt="Profile" className="hero-image" />
+                  <img
+                  src="/images/portfolio-process.png"
+                  alt="Processo de trabalho: Data, Insight, Idea, Product, Impact"
+                  className="hero-image"
+                />
                 </div>
                 <div className="hero-content">
                   <span className="hero-role">Product & Data-driven Problem Solver</span>
@@ -203,39 +224,6 @@ export default function Portfolio() {
             </div>
           </div>
         </section>
-
-        <div className="marquee-wrapper">
-          <div className="marquee-content">
-            <div className="marquee-text">
-              <span>Available for New Projects</span>
-              <span className="marquee-dot">•</span>
-              <span>Design & Development</span>
-              <span className="marquee-dot">•</span>
-              <span>Let's Build Something Amazing</span>
-              <span className="marquee-dot">•</span>
-              <span>Available for New Projects</span>
-              <span className="marquee-dot">•</span>
-              <span>Design & Development</span>
-              <span className="marquee-dot">•</span>
-              <span>Let's Build Something Amazing</span>
-              <span className="marquee-dot">•</span>
-            </div>
-            <div className="marquee-text" aria-hidden="true">
-              <span>Available for New Projects</span>
-              <span className="marquee-dot">•</span>
-              <span>Design & Development</span>
-              <span className="marquee-dot">•</span>
-              <span>Let's Build Something Amazing</span>
-              <span className="marquee-dot">•</span>
-              <span>Available for New Projects</span>
-              <span className="marquee-dot">•</span>
-              <span>Design & Development</span>
-              <span className="marquee-dot">•</span>
-              <span>Let's Build Something Amazing</span>
-              <span className="marquee-dot">•</span>
-            </div>
-          </div>
-        </div>
 
         <section id="work" className="section">
           <div className="container">
