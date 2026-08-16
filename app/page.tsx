@@ -182,7 +182,11 @@ export default function Portfolio() {
               <div className="hero-content-wrapper">
                 <div className="hero-image-container animate-on-scroll">
                   <div className="hero-image-bg"></div>
-                  <img src="/images/me-02.jpg" alt="Profile" className="hero-image" />
+                  <img
+                  src="/images/portfolio-process.png"
+                  alt="Processo de trabalho: Data, Insight, Idea, Product, Impact"
+                  className="hero-image"
+                />
                 </div>
                 <div className="hero-content">
                   <span className="hero-role">Product & Data-driven Problem Solver</span>
