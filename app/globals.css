@@ -329,7 +329,7 @@ nav {
 .hero-vertical-name {
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  font-size: 110px;
+  font-size: 108px;
   font-weight: 800;
   line-height: 0.8;
   letter-spacing: -5px;
@@ -866,7 +866,7 @@ footer {
     grid-template-columns: repeat(2, 1fr);
   }
   .hero-vertical-name {
-    font-size: 80px;
+    font-size: 78px;
   }
 
   /* Adjusted profile image size for tablets */
@@ -950,7 +950,7 @@ footer {
     border-right: none;
     border-bottom: 1px solid var(--border);
     padding: 0px 0px 20px;
-    font-size: 60px;
+    font-size: 58px;
     text-align: center;
     min-height: auto; /* Revert min-height for mobile to avoid excessive space */
   }

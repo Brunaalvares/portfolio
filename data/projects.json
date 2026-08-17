@@ -1,0 +1,44 @@
+[
+  {
+    "id": "proj-1",
+    "title": "Unified Component Library",
+    "slug": "unified-component-library",
+    "tag": "Design System",
+    "description": "Built a scalable design system serving 50+ product teams with consistent patterns and reusable components.",
+    "content": "Built a scalable design system serving 50+ product teams with consistent patterns and reusable components.\n\nThis project focused on creating a shared visual language, documentation, and component APIs that product teams could adopt with confidence.",
+    "image": "/modern-design-system-interface.png",
+    "url": "",
+    "featured": true,
+    "order": 1,
+    "createdAt": "2026-01-10T00:00:00.000Z",
+    "updatedAt": "2026-01-10T00:00:00.000Z"
+  },
+  {
+    "id": "proj-2",
+    "title": "Wellness Tracking Platform",
+    "slug": "wellness-tracking-platform",
+    "tag": "Mobile App",
+    "description": "Designed and developed a cross-platform mobile experience that helps users maintain healthy habits.",
+    "content": "Designed and developed a cross-platform mobile experience that helps users maintain healthy habits.\n\nThe product combines habit tracking, gentle reminders, and clear progress visualization.",
+    "image": "/mobile-app-interface.png",
+    "url": "",
+    "featured": true,
+    "order": 2,
+    "createdAt": "2026-01-08T00:00:00.000Z",
+    "updatedAt": "2026-01-08T00:00:00.000Z"
+  },
+  {
+    "id": "proj-3",
+    "title": "Sustainable Fashion Marketplace",
+    "slug": "sustainable-fashion-marketplace",
+    "tag": "E-Commerce",
+    "description": "Created a seamless shopping experience for eco-conscious consumers with integrated sustainability metrics.",
+    "content": "Created a seamless shopping experience for eco-conscious consumers with integrated sustainability metrics.\n\nShoppers can compare impact scores and understand the story behind each product.",
+    "image": "/modern-ecommerce-website.png",
+    "url": "",
+    "featured": true,
+    "order": 3,
+    "createdAt": "2026-01-05T00:00:00.000Z",
+    "updatedAt": "2026-01-05T00:00:00.000Z"
+  }
+]
