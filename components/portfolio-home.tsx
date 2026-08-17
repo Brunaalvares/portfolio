@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react"
 import type { BlogPost, Project } from "@/lib/types"
+import {
+  BLOGS_STORAGE_KEY,
+  PROJECTS_STORAGE_KEY,
+  readLocalJson,
+} from "@/lib/client-store"
 
 type Props = {
   projects: Project[]
@@ -20,11 +25,29 @@ function formatBlogDate(value: string) {
   }
 }
 
-export default function PortfolioHome({ projects, blogs }: Props) {
+export default function PortfolioHome({ projects: initialProjects, blogs: initialBlogs }: Props) {
+  const [projects, setProjects] = useState(initialProjects)
+  const [blogs, setBlogs] = useState(initialBlogs)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [typedText, setTypedText] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
   const fullText = "Bruna Alvares"
+
+  useEffect(() => {
+    const localProjects = readLocalJson<Project[]>(PROJECTS_STORAGE_KEY)
+    if (localProjects !== null) {
+      setProjects(localProjects.filter((p) => p.featured).slice(0, 6))
+    }
+    const localBlogs = readLocalJson<BlogPost[]>(BLOGS_STORAGE_KEY)
+    if (localBlogs !== null) {
+      setBlogs(
+        localBlogs
+          .filter((b) => b.published)
+          .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+          .slice(0, 3),
+      )
+    }
+  }, [])
 
   useEffect(() => {
     const animateText = (element: Element) => {

@@ -13,7 +13,15 @@ async function readJsonFile<T>(filename: string): Promise<T> {
 
 async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
   const filePath = path.join(dataDir, filename)
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf-8")
+  try {
+    await fs.mkdir(dataDir, { recursive: true })
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf-8")
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "erro desconhecido"
+    throw new Error(
+      `Falha ao gravar ${filename}: ${message}. Em hospedagem serverless o disco pode ser somente leitura.`,
+    )
+  }
 }
 
 function ensureUniqueSlug(base: string, existing: string[], currentId?: string): string {

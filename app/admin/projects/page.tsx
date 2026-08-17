@@ -2,6 +2,9 @@
 
 import { FormEvent, useEffect, useState } from "react"
 import type { Project } from "@/lib/types"
+import { PROJECTS_STORAGE_KEY, readLocalJson, writeLocalJson } from "@/lib/client-store"
+import { uploadImageFile } from "@/lib/image-upload"
+import { slugify } from "@/lib/types"
 
 const emptyForm = {
   title: "",
@@ -15,14 +18,26 @@ const emptyForm = {
   order: 0,
 }
 
+function sortProjects(list: Project[]) {
+  return [...list].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title))
+}
+
 export default function AdminProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  function persistLocal(next: Project[]) {
+    const sorted = sortProjects(next)
+    writeLocalJson(PROJECTS_STORAGE_KEY, sorted)
+    setProjects(sorted)
+  }
 
   async function load() {
     setLoading(true)
@@ -34,11 +49,23 @@ export default function AdminProjectsPage() {
         window.location.href = "/admin/login"
         return
       }
+
+      const local = readLocalJson<Project[]>(PROJECTS_STORAGE_KEY)
       const res = await fetch("/api/projects")
-      const data = await res.json()
-      setProjects(data)
+      const remote = res.ok ? ((await res.json()) as Project[]) : []
+
+      if (local !== null) {
+        persistLocal(local)
+      } else {
+        persistLocal(remote)
+      }
     } catch {
-      setError("Erro ao carregar projetos")
+      const local = readLocalJson<Project[]>(PROJECTS_STORAGE_KEY)
+      if (local) {
+        persistLocal(local)
+      } else {
+        setError("Erro ao carregar projetos")
+      }
     } finally {
       setLoading(false)
     }
@@ -51,6 +78,8 @@ export default function AdminProjectsPage() {
   function openCreate() {
     setEditing(null)
     setForm({ ...emptyForm, order: projects.length + 1 })
+    setError("")
+    setNotice("")
     setDialogOpen(true)
   }
 
@@ -67,13 +96,50 @@ export default function AdminProjectsPage() {
       featured: project.featured,
       order: project.order,
     })
+    setError("")
+    setNotice("")
     setDialogOpen(true)
+  }
+
+  async function handleImagePick(file: File | null) {
+    if (!file) return
+    setUploading(true)
+    setError("")
+    try {
+      const result = await uploadImageFile(file)
+      setForm((prev) => ({ ...prev, image: result.url }))
+      if (!result.persisted) {
+        setNotice("Imagem anexada neste navegador (upload no servidor indisponível).")
+      } else {
+        setNotice("Imagem enviada com sucesso.")
+      }
+    } catch {
+      setError("Não foi possível processar a imagem")
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError("")
+    setNotice("")
+
+    const now = new Date().toISOString()
+    const baseSlug = slugify(form.slug || form.title)
+    let slug = baseSlug || "projeto"
+    let n = 2
+    while (projects.some((p) => p.slug === slug && p.id !== editing?.id)) {
+      slug = `${baseSlug}-${n}`
+      n++
+    }
+
+    const payload = {
+      ...form,
+      slug,
+      content: form.content || form.description,
+    }
 
     try {
       const url = editing ? `/api/projects/${editing.id}` : "/api/projects"
@@ -81,40 +147,122 @@ export default function AdminProjectsPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setError(data.error || "Erro ao salvar")
-        setSaving(false)
+      if (res.status === 401) {
+        window.location.href = "/admin/login"
         return
       }
 
+      if (res.ok) {
+        const saved = (await res.json()) as Project
+        const next = editing
+          ? projects.map((p) => (p.id === saved.id ? saved : p))
+          : [...projects, saved]
+        persistLocal(next)
+        setDialogOpen(false)
+        setSaving(false)
+        setNotice("Projeto salvo.")
+        return
+      }
+
+      // Server write failed (common on serverless). Keep working via localStorage.
+      const data = await res.json().catch(() => ({}))
+      const localProject: Project = editing
+        ? {
+            ...editing,
+            ...payload,
+            updatedAt: now,
+          }
+        : {
+            id: `proj-${Date.now()}`,
+            title: payload.title.trim(),
+            slug,
+            tag: payload.tag.trim(),
+            description: payload.description.trim(),
+            content: payload.content.trim(),
+            image: payload.image.trim(),
+            url: payload.url.trim(),
+            featured: Boolean(payload.featured),
+            order: Number.isFinite(payload.order) ? payload.order : projects.length + 1,
+            createdAt: now,
+            updatedAt: now,
+          }
+
+      const next = editing
+        ? projects.map((p) => (p.id === localProject.id ? localProject : p))
+        : [...projects, localProject]
+      persistLocal(next)
       setDialogOpen(false)
-      setSaving(false)
-      await load()
+      setNotice(
+        data.error
+          ? `Salvo neste navegador. Servidor: ${data.error}`
+          : "Salvo neste navegador (servidor indisponível para gravar).",
+      )
     } catch {
-      setError("Erro ao salvar projeto")
+      const localProject: Project = editing
+        ? { ...editing, ...payload, updatedAt: now }
+        : {
+            id: `proj-${Date.now()}`,
+            title: payload.title.trim(),
+            slug,
+            tag: payload.tag.trim(),
+            description: payload.description.trim(),
+            content: (payload.content || payload.description).trim(),
+            image: payload.image.trim(),
+            url: payload.url.trim(),
+            featured: Boolean(payload.featured),
+            order: Number.isFinite(payload.order) ? payload.order : projects.length + 1,
+            createdAt: now,
+            updatedAt: now,
+          }
+      const next = editing
+        ? projects.map((p) => (p.id === localProject.id ? localProject : p))
+        : [...projects, localProject]
+      persistLocal(next)
+      setDialogOpen(false)
+      setNotice("Salvo neste navegador (sem conexão com a API).")
+    } finally {
       setSaving(false)
     }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Excluir este projeto?")) return
-    const res = await fetch(`/api/projects/${id}`, { method: "DELETE" })
-    if (!res.ok) {
-      setError("Erro ao excluir")
-      return
+    setError("")
+    setNotice("")
+
+    const next = projects.filter((p) => p.id !== id)
+    persistLocal(next)
+
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" })
+      if (res.status === 401) {
+        window.location.href = "/admin/login"
+        return
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setNotice(
+          data.error
+            ? `Removido neste navegador. Servidor: ${data.error}`
+            : "Removido neste navegador (servidor não gravou).",
+        )
+        return
+      }
+      setNotice("Projeto excluído.")
+    } catch {
+      setNotice("Removido neste navegador (sem conexão com a API).")
     }
-    await load()
   }
 
   return (
     <>
       <h1 className="admin-page-title">Projetos</h1>
       <p className="admin-page-desc">
-        Adicione, edite ou remova os projetos exibidos na seção Work do portfólio.
+        Adicione, edite ou remova os projetos exibidos na seção Work do portfólio. Você pode enviar
+        fotos do computador.
       </p>
 
       <div className="admin-actions">
@@ -124,6 +272,7 @@ export default function AdminProjectsPage() {
       </div>
 
       {error ? <p className="admin-error" style={{ marginBottom: "1rem" }}>{error}</p> : null}
+      {notice ? <p className="admin-success" style={{ marginBottom: "1rem" }}>{notice}</p> : null}
 
       <div className="admin-table-wrap">
         {loading ? (
@@ -145,10 +294,27 @@ export default function AdminProjectsPage() {
               {projects.map((project) => (
                 <tr key={project.id}>
                   <td>
-                    <strong>{project.title}</strong>
-                    <div style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.25rem" }}>
-                      {project.description.slice(0, 80)}
-                      {project.description.length > 80 ? "…" : ""}
+                    <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+                      {project.image ? (
+                        <img
+                          src={project.image}
+                          alt=""
+                          style={{
+                            width: 56,
+                            height: 56,
+                            objectFit: "cover",
+                            borderRadius: 8,
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : null}
+                      <div>
+                        <strong>{project.title}</strong>
+                        <div style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+                          {project.description.slice(0, 80)}
+                          {project.description.length > 80 ? "…" : ""}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td>
@@ -246,25 +412,51 @@ export default function AdminProjectsPage() {
                   style={{ minHeight: 160 }}
                 />
               </div>
-              <div className="admin-form-row">
+              <div className="admin-field">
+                <label htmlFor="imageFile">Foto do projeto</label>
+                <input
+                  id="imageFile"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  disabled={uploading || saving}
+                  onChange={(e) => handleImagePick(e.target.files?.[0] || null)}
+                />
+                <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "#666" }}>
+                  Envie uma imagem do computador (JPG, PNG, WEBP ou GIF).
+                </p>
+              </div>
+              {form.image ? (
                 <div className="admin-field">
-                  <label htmlFor="image">URL da imagem</label>
-                  <input
-                    id="image"
-                    value={form.image}
-                    onChange={(e) => setForm({ ...form, image: e.target.value })}
-                    placeholder="/minha-imagem.png"
+                  <label>Pré-visualização</label>
+                  <img
+                    src={form.image}
+                    alt="Pré-visualização"
+                    style={{
+                      width: "100%",
+                      maxHeight: 220,
+                      objectFit: "cover",
+                      borderRadius: 10,
+                      border: "1px solid rgba(26,26,26,0.08)",
+                    }}
                   />
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost"
+                    style={{ marginTop: "0.35rem", width: "fit-content" }}
+                    onClick={() => setForm({ ...form, image: "" })}
+                  >
+                    Remover imagem
+                  </button>
                 </div>
-                <div className="admin-field">
-                  <label htmlFor="url">Link externo</label>
-                  <input
-                    id="url"
-                    value={form.url}
-                    onChange={(e) => setForm({ ...form, url: e.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
+              ) : null}
+              <div className="admin-field">
+                <label htmlFor="url">Link externo</label>
+                <input
+                  id="url"
+                  value={form.url}
+                  onChange={(e) => setForm({ ...form, url: e.target.value })}
+                  placeholder="https://..."
+                />
               </div>
               <label className="admin-check">
                 <input
@@ -274,9 +466,15 @@ export default function AdminProjectsPage() {
                 />
                 Exibir na home (destaque)
               </label>
+              {error ? <p className="admin-error">{error}</p> : null}
+              {notice ? <p className="admin-success">{notice}</p> : null}
               <div className="admin-actions" style={{ marginBottom: 0, marginTop: "0.5rem" }}>
-                <button type="submit" className="admin-btn admin-btn-primary" disabled={saving}>
-                  {saving ? "Salvando..." : "Salvar"}
+                <button
+                  type="submit"
+                  className="admin-btn admin-btn-primary"
+                  disabled={saving || uploading}
+                >
+                  {saving ? "Salvando..." : uploading ? "Enviando imagem..." : "Salvar"}
                 </button>
                 <button
                   type="button"

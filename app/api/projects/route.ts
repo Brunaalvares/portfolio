@@ -31,7 +31,8 @@ export async function POST(request: Request) {
     })
 
     return NextResponse.json(project, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: "Não foi possível criar o projeto" }, { status: 500 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível criar o projeto"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

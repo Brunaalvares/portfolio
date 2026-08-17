@@ -26,8 +26,9 @@ export async function PUT(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Projeto não encontrado" }, { status: 404 })
     }
     return NextResponse.json(project)
-  } catch {
-    return NextResponse.json({ error: "Não foi possível atualizar o projeto" }, { status: 500 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível atualizar o projeto"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -36,10 +37,15 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
   }
 
-  const { id } = await params
-  const ok = await deleteProject(id)
-  if (!ok) {
-    return NextResponse.json({ error: "Projeto não encontrado" }, { status: 404 })
+  try {
+    const { id } = await params
+    const ok = await deleteProject(id)
+    if (!ok) {
+      return NextResponse.json({ error: "Projeto não encontrado" }, { status: 404 })
+    }
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível excluir o projeto"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-  return NextResponse.json({ ok: true })
 }

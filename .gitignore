@@ -23,6 +23,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# uploaded portfolio images (keep folder)
+/public/uploads/*
+!/public/uploads/.gitkeep

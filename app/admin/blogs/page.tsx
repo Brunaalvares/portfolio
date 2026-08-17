@@ -2,6 +2,9 @@
 
 import { FormEvent, useEffect, useState } from "react"
 import type { BlogPost } from "@/lib/types"
+import { BLOGS_STORAGE_KEY, readLocalJson, writeLocalJson } from "@/lib/client-store"
+import { uploadImageFile } from "@/lib/image-upload"
+import { slugify } from "@/lib/types"
 
 const emptyForm = {
   title: "",
@@ -19,14 +22,28 @@ function toDateInput(value: string) {
   return value.slice(0, 10)
 }
 
+function sortBlogs(list: BlogPost[]) {
+  return [...list].sort(
+    (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+  )
+}
+
 export default function AdminBlogsPage() {
   const [blogs, setBlogs] = useState<BlogPost[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<BlogPost | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  function persistLocal(next: BlogPost[]) {
+    const sorted = sortBlogs(next)
+    writeLocalJson(BLOGS_STORAGE_KEY, sorted)
+    setBlogs(sorted)
+  }
 
   async function load() {
     setLoading(true)
@@ -38,11 +55,20 @@ export default function AdminBlogsPage() {
         window.location.href = "/admin/login"
         return
       }
+
+      const local = readLocalJson<BlogPost[]>(BLOGS_STORAGE_KEY)
       const res = await fetch("/api/blogs?all=1")
-      const data = await res.json()
-      setBlogs(data)
+      const remote = res.ok ? ((await res.json()) as BlogPost[]) : []
+
+      if (local !== null) {
+        persistLocal(local)
+      } else {
+        persistLocal(remote)
+      }
     } catch {
-      setError("Erro ao carregar blogs")
+      const local = readLocalJson<BlogPost[]>(BLOGS_STORAGE_KEY)
+      if (local) persistLocal(local)
+      else setError("Erro ao carregar blogs")
     } finally {
       setLoading(false)
     }
@@ -58,6 +84,8 @@ export default function AdminBlogsPage() {
       ...emptyForm,
       publishedAt: new Date().toISOString().slice(0, 10),
     })
+    setError("")
+    setNotice("")
     setDialogOpen(true)
   }
 
@@ -73,19 +101,54 @@ export default function AdminBlogsPage() {
       published: blog.published,
       publishedAt: toDateInput(blog.publishedAt),
     })
+    setError("")
+    setNotice("")
     setDialogOpen(true)
+  }
+
+  async function handleImagePick(file: File | null) {
+    if (!file) return
+    setUploading(true)
+    setError("")
+    try {
+      const result = await uploadImageFile(file)
+      setForm((prev) => ({ ...prev, image: result.url }))
+      setNotice(
+        result.persisted
+          ? "Imagem enviada com sucesso."
+          : "Imagem anexada neste navegador (upload no servidor indisponível).",
+      )
+    } catch {
+      setError("Não foi possível processar a imagem")
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError("")
+    setNotice("")
+
+    const now = new Date().toISOString()
+    const publishedAt = form.publishedAt
+      ? new Date(`${form.publishedAt}T12:00:00.000Z`).toISOString()
+      : now
+
+    const baseSlug = slugify(form.slug || form.title)
+    let slug = baseSlug || "post"
+    let n = 2
+    while (blogs.some((b) => b.slug === slug && b.id !== editing?.id)) {
+      slug = `${baseSlug}-${n}`
+      n++
+    }
 
     const payload = {
       ...form,
-      publishedAt: form.publishedAt
-        ? new Date(`${form.publishedAt}T12:00:00.000Z`).toISOString()
-        : new Date().toISOString(),
+      slug,
+      publishedAt,
+      content: form.content || form.excerpt,
     }
 
     try {
@@ -97,37 +160,111 @@ export default function AdminBlogsPage() {
         body: JSON.stringify(payload),
       })
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setError(data.error || "Erro ao salvar")
-        setSaving(false)
+      if (res.status === 401) {
+        window.location.href = "/admin/login"
         return
       }
 
+      if (res.ok) {
+        const saved = (await res.json()) as BlogPost
+        const next = editing
+          ? blogs.map((b) => (b.id === saved.id ? saved : b))
+          : [...blogs, saved]
+        persistLocal(next)
+        setDialogOpen(false)
+        setNotice("Post salvo.")
+        return
+      }
+
+      const data = await res.json().catch(() => ({}))
+      const localBlog: BlogPost = editing
+        ? { ...editing, ...payload, updatedAt: now }
+        : {
+            id: `blog-${Date.now()}`,
+            title: payload.title.trim(),
+            slug,
+            tag: payload.tag.trim(),
+            excerpt: payload.excerpt.trim(),
+            content: payload.content.trim(),
+            image: payload.image.trim(),
+            published: Boolean(payload.published),
+            publishedAt,
+            createdAt: now,
+            updatedAt: now,
+          }
+
+      const next = editing
+        ? blogs.map((b) => (b.id === localBlog.id ? localBlog : b))
+        : [...blogs, localBlog]
+      persistLocal(next)
       setDialogOpen(false)
-      setSaving(false)
-      await load()
+      setNotice(
+        data.error
+          ? `Salvo neste navegador. Servidor: ${data.error}`
+          : "Salvo neste navegador (servidor indisponível para gravar).",
+      )
     } catch {
-      setError("Erro ao salvar post")
+      const localBlog: BlogPost = editing
+        ? { ...editing, ...payload, updatedAt: now }
+        : {
+            id: `blog-${Date.now()}`,
+            title: payload.title.trim(),
+            slug,
+            tag: payload.tag.trim(),
+            excerpt: payload.excerpt.trim(),
+            content: (payload.content || payload.excerpt).trim(),
+            image: payload.image.trim(),
+            published: Boolean(payload.published),
+            publishedAt,
+            createdAt: now,
+            updatedAt: now,
+          }
+      const next = editing
+        ? blogs.map((b) => (b.id === localBlog.id ? localBlog : b))
+        : [...blogs, localBlog]
+      persistLocal(next)
+      setDialogOpen(false)
+      setNotice("Salvo neste navegador (sem conexão com a API).")
+    } finally {
       setSaving(false)
     }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Excluir este post?")) return
-    const res = await fetch(`/api/blogs/${id}`, { method: "DELETE" })
-    if (!res.ok) {
-      setError("Erro ao excluir")
-      return
+    setError("")
+    setNotice("")
+
+    const next = blogs.filter((b) => b.id !== id)
+    persistLocal(next)
+
+    try {
+      const res = await fetch(`/api/blogs/${id}`, { method: "DELETE" })
+      if (res.status === 401) {
+        window.location.href = "/admin/login"
+        return
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setNotice(
+          data.error
+            ? `Removido neste navegador. Servidor: ${data.error}`
+            : "Removido neste navegador (servidor não gravou).",
+        )
+        return
+      }
+      setNotice("Post excluído.")
+    } catch {
+      setNotice("Removido neste navegador (sem conexão com a API).")
     }
-    await load()
   }
 
   return (
     <>
       <h1 className="admin-page-title">Blogs</h1>
       <p className="admin-page-desc">
-        Crie e edite artigos que aparecem na seção Blog do site e nas páginas individuais.
+        Crie e edite artigos que aparecem na seção Blog do site. Você pode enviar fotos do
+        computador.
       </p>
 
       <div className="admin-actions">
@@ -137,6 +274,7 @@ export default function AdminBlogsPage() {
       </div>
 
       {error ? <p className="admin-error" style={{ marginBottom: "1rem" }}>{error}</p> : null}
+      {notice ? <p className="admin-success" style={{ marginBottom: "1rem" }}>{notice}</p> : null}
 
       <div className="admin-table-wrap">
         {loading ? (
@@ -265,14 +403,39 @@ export default function AdminBlogsPage() {
                 />
               </div>
               <div className="admin-field">
-                <label htmlFor="image">URL da imagem (opcional)</label>
+                <label htmlFor="imageFile">Imagem de capa</label>
                 <input
-                  id="image"
-                  value={form.image}
-                  onChange={(e) => setForm({ ...form, image: e.target.value })}
-                  placeholder="/minha-imagem.png"
+                  id="imageFile"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  disabled={uploading || saving}
+                  onChange={(e) => handleImagePick(e.target.files?.[0] || null)}
                 />
               </div>
+              {form.image ? (
+                <div className="admin-field">
+                  <label>Pré-visualização</label>
+                  <img
+                    src={form.image}
+                    alt="Pré-visualização"
+                    style={{
+                      width: "100%",
+                      maxHeight: 220,
+                      objectFit: "cover",
+                      borderRadius: 10,
+                      border: "1px solid rgba(26,26,26,0.08)",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost"
+                    style={{ marginTop: "0.35rem", width: "fit-content" }}
+                    onClick={() => setForm({ ...form, image: "" })}
+                  >
+                    Remover imagem
+                  </button>
+                </div>
+              ) : null}
               <label className="admin-check">
                 <input
                   type="checkbox"
@@ -281,9 +444,15 @@ export default function AdminBlogsPage() {
                 />
                 Publicado
               </label>
+              {error ? <p className="admin-error">{error}</p> : null}
+              {notice ? <p className="admin-success">{notice}</p> : null}
               <div className="admin-actions" style={{ marginBottom: 0, marginTop: "0.5rem" }}>
-                <button type="submit" className="admin-btn admin-btn-primary" disabled={saving}>
-                  {saving ? "Salvando..." : "Salvar"}
+                <button
+                  type="submit"
+                  className="admin-btn admin-btn-primary"
+                  disabled={saving || uploading}
+                >
+                  {saving ? "Salvando..." : uploading ? "Enviando imagem..." : "Salvar"}
                 </button>
                 <button
                   type="button"
